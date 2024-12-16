@@ -1,3 +1,52 @@
+interface MerchantData {
+  startDate: Date | null;
+  endDate: Date | null;
+  clientName: string;
+  country: string;
+  language: string;
+  currency: string;
+  email: string;
+  phone: string;
+  website: string;
+  instagram: string;
+  facebook: string;
+  shipping: boolean;
+  selfPickup: boolean;
+  shippingCost: string;
+  deliveryTime: string;
+  pickupAddress: string;
+  pickupHours: string;
+  qrCodePrinting: boolean;
+}
+
+interface Product {
+  name: string;
+  country: string;
+  region: string;
+  producer: string;
+  sku: string;
+  productType: string;
+  vintage: string;
+  alcoholPercentage: number;
+  technicalSheet: string;
+  imageUrl: string;
+  contentAlignment: string;
+  grapeCompositions: string;
+  description: string;
+  biological: boolean;
+  kosher: boolean;
+  shelfPrice: number;
+  discountPercentage: number;
+  wineingPrice: number;
+  minBottles: number;
+  maxBottles: number;
+  unitType: string;
+}
+
+interface ProductData {
+  products: Product[];
+}
+
 'use client'
 
 import { useState } from 'react'
@@ -9,15 +58,15 @@ import { ProductInformation } from './components/ProductInformation'
 
 export default function MerchantSignupPage() {
   const [currentStep, setCurrentStep] = useState(1)
-  const [merchantData, setMerchantData] = useState(null)
-  const [productData, setProductData] = useState(null)
+  const [merchantData, setMerchantData] = useState<MerchantData | null>(null)
+  const [productData, setProductData] = useState<ProductData | null>(null)
 
-  const handleMerchantInfoComplete = (data) => {
+  const handleMerchantInfoComplete = (data: MerchantData) => {
     setMerchantData(data)
     setCurrentStep(2)
   }
 
-  const handleProductInfoComplete = (data) => {
+  const handleProductInfoComplete = (data: ProductData) => {
     setProductData(data)
     // Here you would typically submit both merchantData and productData
     console.log('Merchant Data:', merchantData)

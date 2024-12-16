@@ -2,49 +2,135 @@
 
 import { useState } from 'react'
 import { useForm, useFieldArray, Controller } from 'react-hook-form'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Button } from '@/components/ui/button'
-import { Textarea } from '@/components/ui/textarea'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Switch } from '@/components/ui/switch'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { zodResolver } from '@hookform/resolvers/zod'
+import * as z from 'zod'
+import { Card, CardContent, CardHeader, CardTitle } from '../../../components/ui/card'
+import { Input } from '../../../components/ui/input'
+import { Label } from '../../../components/ui/label'
+import { Button } from '../../../components/ui/button'
+import { Textarea } from '../../../components/ui/textarea'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../../components/ui/select'
+import { Switch } from '../../../components/ui/switch'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../../components/ui/tabs'
 import { ProductPreview } from './ProductPreview'
+import { cn } from '../../../lib/utils'
 
-interface ProductInformationProps {
-  merchantData: any;
-  onBack: () => void;
-  onComplete: (data: any) => void;
-  initialData: any;
+interface Product {
+  name: string;
+  country: string;
+  region: string;
+  producer: string;
+  sku: string;
+  productType: string;
+  vintage: string;
+  alcoholPercentage: number;
+  technicalSheet: string;
+  imageUrl: string;
+  contentAlignment: string;
+  grapeCompositions: string;
+  description: string;
+  biological: boolean;
+  kosher: boolean;
+  shelfPrice: number;
+  discountPercentage: number;
+  wineingPrice: number;
+  minBottles: number;
+  maxBottles: number;
+  unitType: string;
 }
 
+interface ProductData {
+  products: Product[];
+}
+
+interface MerchantData {
+  startDate: Date | null;
+  endDate: Date | null;
+  clientName: string;
+  country: string;
+  language: string;
+  currency: string;
+  email: string;
+  phone: string;
+  website: string;
+  instagram: string;
+  facebook: string;
+  shipping: boolean;
+  selfPickup: boolean;
+  shippingCost: string;
+  deliveryTime: string;
+  pickupAddress: string;
+  pickupHours: string;
+  qrCodePrinting: boolean;
+}
+
+interface ProductInformationProps {
+  merchantData: MerchantData | null;
+  onBack: () => void;
+  onComplete: (data: ProductData) => void;
+  initialData: ProductData | null;
+}
+
+const productSchema = z.object({
+  name: z.string().min(1, 'Product name is required'),
+  country: z.string().min(1, 'Country is required'),
+  region: z.string().min(1, 'Region is required'),
+  producer: z.string().min(1, 'Producer is required'),
+  sku: z.string().min(1, 'SKU is required'),
+  productType: z.string().min(1, 'Product type is required'),
+  vintage: z.string().min(1, 'Vintage is required'),
+  alcoholPercentage: z.number().min(0).max(100),
+  technicalSheet: z.string().url().optional().or(z.literal('')),
+  imageUrl: z.string().url().optional().or(z.literal('')),
+  contentAlignment: z.string(),
+  grapeCompositions: z.string(),
+  description: z.string().min(1, 'Description is required'),
+  biological: z.boolean(),
+  kosher: z.boolean(),
+  shelfPrice: z.number().min(0, 'Price must be positive'),
+  discountPercentage: z.number().min(0).max(100),
+  wineingPrice: z.number().min(0, 'Price must be positive'),
+  minBottles: z.number().min(0),
+  maxBottles: z.number().min(0),
+  unitType: z.string()
+})
+
+const formSchema = z.object({
+  products: z.array(productSchema).min(1, 'At least one product is required')
+})
+
 export function ProductInformation({ merchantData, onBack, onComplete, initialData }: ProductInformationProps) {
-  const { control, handleSubmit, watch } = useForm({
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [submitError, setSubmitError] = useState<string | null>(null)
+
+  const defaultProduct: Product = {
+    name: '',
+    country: '',
+    region: '',
+    producer: '',
+    sku: '',
+    productType: '',
+    vintage: '',
+    alcoholPercentage: 0,
+    technicalSheet: '',
+    imageUrl: '',
+    contentAlignment: '',
+    grapeCompositions: '',
+    description: '',
+    biological: false,
+    kosher: false,
+    shelfPrice: 0,
+    discountPercentage: 0,
+    wineingPrice: 0,
+    minBottles: 0,
+    maxBottles: 0,
+    unitType: 'bottle',
+  }
+
+  const { control, handleSubmit, watch, formState: { errors } } = useForm<ProductData>({
+    resolver: zodResolver(formSchema),
     defaultValues: initialData || {
-      products: [{
-        name: '',
-        country: '',
-        region: '',
-        producer: '',
-        sku: '',
-        productType: '',
-        vintage: '',
-        alcoholPercentage: 0,
-        technicalSheet: '',
-        imageUrl: '',
-        contentAlignment: '',
-        grapeCompositions: '',
-        description: '',
-        biological: false,
-        kosher: false,
-        shelfPrice: 0,
-        discountPercentage: 0,
-        wineingPrice: 0,
-        minBottles: 0,
-        maxBottles: 0,
-        unitType: 'bottle',
-      }]
+      products: [defaultProduct]
     }
   })
 
@@ -53,9 +139,16 @@ export function ProductInformation({ merchantData, onBack, onComplete, initialDa
     name: 'products'
   })
 
-  const onSubmit = (data: any) => {
-    console.log(data)
-    onComplete(data)
+  const onSubmit = async (data: ProductData) => {
+    try {
+      setIsSubmitting(true)
+      setSubmitError(null)
+      await onComplete(data)
+    } catch (error) {
+      setSubmitError(error instanceof Error ? error.message : 'An error occurred while saving the products')
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   return (
@@ -88,10 +181,15 @@ export function ProductInformation({ merchantData, onBack, onComplete, initialDa
                         name={`products.${index}.name`}
                         control={control}
                         render={({ field }) => (
-                          <Input
-                            {...field}
-                            className="mt-1"
-                          />
+                          <>
+                            <Input
+                              {...field}
+                              className={cn("mt-1", errors.products?.[index]?.name && "border-red-500")}
+                            />
+                            {errors.products?.[index]?.name && (
+                              <p className="mt-1 text-sm text-red-500">{errors.products[index]?.name?.message}</p>
+                            )}
+                          </>
                         )}
                       />
                     </div>
@@ -101,17 +199,21 @@ export function ProductInformation({ merchantData, onBack, onComplete, initialDa
                         name={`products.${index}.country`}
                         control={control}
                         render={({ field }) => (
-                          <Select onValueChange={field.onChange} value={field.value}>
-                            <SelectTrigger className="mt-1">
-                              <SelectValue placeholder="Select a country" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="france">France</SelectItem>
-                              <SelectItem value="italy">Italy</SelectItem>
-                              <SelectItem value="spain">Spain</SelectItem>
-                              {/* Add more countries as needed */}
-                            </SelectContent>
-                          </Select>
+                          <>
+                            <Select onValueChange={field.onChange} value={field.value}>
+                              <SelectTrigger className={cn("mt-1", errors.products?.[index]?.country && "border-red-500")}>
+                                <SelectValue placeholder="Select a country" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="france">France</SelectItem>
+                                <SelectItem value="italy">Italy</SelectItem>
+                                <SelectItem value="spain">Spain</SelectItem>
+                              </SelectContent>
+                            </Select>
+                            {errors.products?.[index]?.country && (
+                              <p className="mt-1 text-sm text-red-500">{errors.products[index]?.country?.message}</p>
+                            )}
+                          </>
                         )}
                       />
                     </div>
@@ -399,7 +501,7 @@ export function ProductInformation({ merchantData, onBack, onComplete, initialDa
           {fields.length < 5 && (
             <Button
               type="button"
-              onClick={() => append({})}
+              onClick={() => append(defaultProduct)}
               className="w-full bg-gray-200 text-gray-800 hover:bg-gray-300"
             >
               Add Another Product
@@ -407,12 +509,26 @@ export function ProductInformation({ merchantData, onBack, onComplete, initialDa
           )}
 
           <div className="mt-8 flex justify-between">
-            <Button type="button" onClick={onBack} className="bg-gray-200 text-gray-800 hover:bg-gray-300">
+            <Button 
+              type="button" 
+              onClick={onBack} 
+              className="bg-gray-200 text-gray-800 hover:bg-gray-300"
+              disabled={isSubmitting}
+            >
               Back to Merchant Information
             </Button>
-            <Button type="submit" className="bg-black text-white hover:bg-gray-800">
-              Save and Continue
-            </Button>
+            <div className="space-y-2">
+              {submitError && (
+                <p className="text-sm text-red-500">{submitError}</p>
+              )}
+              <Button 
+                type="submit" 
+                className="bg-black text-white hover:bg-gray-800"
+                disabled={isSubmitting}
+              >
+                {isSubmitting ? 'Saving...' : 'Save and Continue'}
+              </Button>
+            </div>
           </div>
         </div>
 
