@@ -12,8 +12,10 @@ import { Textarea } from '../../../components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../../components/ui/select'
 import { Switch } from '../../../components/ui/switch'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../../components/ui/tabs'
-import { ProductPreview } from './ProductPreview'
 import { cn } from '../../../lib/utils'
+import { ProductCard } from './ProductCard'
+import { UploadModal } from './upload/UploadModal'
+import { processWineImage, processWinePage } from './upload/gemini-service'
 
 interface Product {
   name: string;
@@ -99,6 +101,8 @@ const formSchema = z.object({
   products: z.array(productSchema).min(1, 'At least one product is required')
 })
 
+type ProductFieldName = keyof Product;
+
 export function ProductInformation({ merchantData, onBack, onComplete, initialData }: ProductInformationProps) {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
@@ -127,7 +131,7 @@ export function ProductInformation({ merchantData, onBack, onComplete, initialDa
     unitType: 'bottle',
   }
 
-  const { control, handleSubmit, watch, formState: { errors } } = useForm<ProductData>({
+  const { control, handleSubmit, watch, setValue, formState: { errors } } = useForm<ProductData>({
     resolver: zodResolver(formSchema),
     defaultValues: initialData || {
       products: [defaultProduct]
@@ -138,6 +142,45 @@ export function ProductInformation({ merchantData, onBack, onComplete, initialDa
     control,
     name: 'products'
   })
+
+  const handleFieldsUpdate = (index: number, updates: Partial<Product>) => {
+    Object.entries(updates).forEach(([key, value]) => {
+      const fieldName = key as keyof Product
+      if (fieldName in defaultProduct) {
+        const sanitizedValue = value === null && typeof defaultProduct[fieldName] === 'string' 
+          ? '' 
+          : value
+        setValue(`products.${index}.${fieldName}`, sanitizedValue)
+      }
+    })
+  }
+
+  const handleUploadData = async (index: number, data: { type: 'image' | 'link', url: string }) => {
+    try {
+      const wineData = data.type === 'image' 
+        ? await processWineImage(data.url)
+        : await processWinePage(data.url)
+
+      handleFieldsUpdate(index, {
+        name: wineData.name,
+        country: wineData.country,
+        region: wineData.region,
+        producer: wineData.producer,
+        productType: wineData.productType,
+        vintage: wineData.vintage,
+        alcoholPercentage: wineData.alcoholPercentage,
+        technicalSheet: wineData.technicalSheet || '',
+        imageUrl: data.type === 'image' ? data.url : wineData.imageUrl,
+        grapeCompositions: wineData.grapeCompositions,
+        description: wineData.description,
+        biological: wineData.biological,
+        kosher: wineData.kosher
+      })
+    } catch (error) {
+      console.error('Error processing wine data:', error)
+      throw new Error('Failed to process wine data')
+    }
+  }
 
   const onSubmit = async (data: ProductData) => {
     try {
@@ -159,13 +202,21 @@ export function ProductInformation({ merchantData, onBack, onComplete, initialDa
         <div className="space-y-8">
           {fields.map((field, index) => (
             <Card key={field.id} className="border-gray-200 shadow-sm">
-              <CardHeader className="flex flex-row items-center justify-between">
-                <CardTitle className="text-xl text-gray-900">Product {index + 1}</CardTitle>
-                {index > 0 && (
-                  <Button type="button" variant="destructive" onClick={() => remove(index)}>
-                    Remove
-                  </Button>
-                )}
+              <CardHeader>
+                <div className="flex flex-row items-center justify-between mb-4">
+                  <CardTitle className="text-xl text-gray-900">Product {index + 1}</CardTitle>
+                  <div className="flex items-center gap-2">
+                    {index > 0 && (
+                      <Button type="button" variant="destructive" onClick={() => remove(index)}>
+                        Remove
+                      </Button>
+                    )}
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 border-t pt-4">
+                  <UploadModal onUpload={(data) => handleUploadData(index, data)} />
+                  <p className="text-sm text-gray-500">Upload wine information from image or webpage</p>
+                </div>
               </CardHeader>
               <CardContent>
                 <Tabs defaultValue="basic-info">
@@ -200,16 +251,10 @@ export function ProductInformation({ merchantData, onBack, onComplete, initialDa
                         control={control}
                         render={({ field }) => (
                           <>
-                            <Select onValueChange={field.onChange} value={field.value}>
-                              <SelectTrigger className={cn("mt-1", errors.products?.[index]?.country && "border-red-500")}>
-                                <SelectValue placeholder="Select a country" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="france">France</SelectItem>
-                                <SelectItem value="italy">Italy</SelectItem>
-                                <SelectItem value="spain">Spain</SelectItem>
-                              </SelectContent>
-                            </Select>
+                            <Input
+                              {...field}
+                              className={cn("mt-1", errors.products?.[index]?.country && "border-red-500")}
+                            />
                             {errors.products?.[index]?.country && (
                               <p className="mt-1 text-sm text-red-500">{errors.products[index]?.country?.message}</p>
                             )}
@@ -497,60 +542,45 @@ export function ProductInformation({ merchantData, onBack, onComplete, initialDa
               </CardContent>
             </Card>
           ))}
-
+          
           {fields.length < 5 && (
             <Button
               type="button"
               onClick={() => append(defaultProduct)}
-              className="w-full bg-gray-200 text-gray-800 hover:bg-gray-300"
+              variant="outline"
+              className="w-full mt-4 border border-gray-200"
             >
-              Add Another Product
+              Add Product
             </Button>
           )}
-
-          <div className="mt-8 flex justify-between">
-            <Button 
-              type="button" 
-              onClick={onBack} 
-              className="bg-gray-200 text-gray-800 hover:bg-gray-300"
-              disabled={isSubmitting}
-            >
-              Back to Merchant Information
-            </Button>
-            <div className="space-y-2">
-              {submitError && (
-                <p className="text-sm text-red-500">{submitError}</p>
-              )}
-              <Button 
-                type="submit" 
-                className="bg-black text-white hover:bg-gray-800"
-                disabled={isSubmitting}
-              >
-                {isSubmitting ? 'Saving...' : 'Save and Continue'}
-              </Button>
-            </div>
-          </div>
         </div>
 
-        <div className="sticky top-24">
-          <ProductPreview
-            products={fields.map((field, index) => ({
-              name: watch(`products.${index}.name`) || 'Product Name',
-              vintage: watch(`products.${index}.vintage`) || '2021',
-              region: watch(`products.${index}.region`) || 'Region',
-              countryCode: watch(`products.${index}.country`) || 'us',
-              rating: 4.0,
-              composition: [watch(`products.${index}.grapeCompositions`) || 'Grape composition'],
-              price: Number(watch(`products.${index}.wineingPrice`) || 0),
-              originalPrice: Number(watch(`products.${index}.shelfPrice`) || 0),
-              minimumTarget: Number(watch(`products.${index}.minBottles`) || 6),
-              currentOrders: 0,
-              availableStock: Number(watch(`products.${index}.maxBottles`) || 20),
-              imageUrl: watch(`products.${index}.imageUrl`) || '/placeholder.svg'
-            }))}
-          />
+        <div className="space-y-8">
+          {fields.map((field, index) => (
+            <ProductCard
+              key={field.id}
+              name={watch(`products.${index}.name`) || 'Product Name'}
+              vintage={watch(`products.${index}.vintage`) || 'Year'}
+              region={watch(`products.${index}.region`) || 'Region'}
+              countryCode={watch(`products.${index}.country`) || ''}
+              composition={(watch(`products.${index}.grapeCompositions`) || '').split(',').filter(Boolean).map(g => g.trim())}
+              price={watch(`products.${index}.wineingPrice`) || 0}
+              originalPrice={watch(`products.${index}.shelfPrice`) || 0}
+              minimumTarget={watch(`products.${index}.minBottles`) || 0}
+              currentOrders={0}
+              availableStock={watch(`products.${index}.maxBottles`) || 0}
+              imageUrl={watch(`products.${index}.imageUrl`) || 'https://placehold.co/400x600/e2e8f0/1a2c42?text=Wine+Image'}
+              description={watch(`products.${index}.description`) || ''}
+              isPreview={true}
+              onFieldsUpdate={(updates: Partial<Product>) => handleFieldsUpdate(index, updates)}
+            />
+          ))}
         </div>
       </div>
+
+      {submitError && (
+        <p className="text-sm text-red-500 mt-2">{submitError}</p>
+      )}
     </form>
   )
 }

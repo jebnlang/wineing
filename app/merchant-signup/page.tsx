@@ -51,7 +51,6 @@ interface ProductData {
 
 import { useState } from 'react'
 import { Header } from './components/Header'
-import { HeroSection } from './components/HeroSection'
 import { ProgressIndicator } from './components/ProgressIndicator'
 import { MerchantInformation } from './components/MerchantInformation'
 import { ProductInformation } from './components/ProductInformation'
@@ -84,8 +83,7 @@ export default function MerchantSignupPage() {
   return (
     <div className="min-h-screen bg-white">
       <Header />
-      <HeroSection />
-      <main className="container mx-auto px-4 py-12">
+      <main className="container mx-auto px-4 py-8">
         <ProgressIndicator 
           currentStep={currentStep} 
           totalSteps={2} 
